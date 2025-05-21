@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Panel Admina</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    #messages-list button {
+      margin-left: 10px;
+    }
+    #admin-panel {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>Panel administratora</h1>
+
+  <!--  logowanie -->
+  <div id="login-form">
+    <p>Wprowadź hasło, aby uzyskać dostęp:</p>
+    <input type="password" id="admin-password" placeholder="Hasło" />
+    <button onclick="checkPassword()">Zaloguj</button>
+    <p id="login-error" style="color:red;"></p>
+  </div>
+
+  <!-- 📬 wiadomości -->
+  <div id="admin-panel">
+    <h2>Wiadomości kontaktowe</h2>
+    <ul id="messages-list"></ul>
+  </div>
+<button id="logout-btn" onclick="logout()" style="display: none;">Wyloguj</button>
+
+<script>
+  const ADMIN_PASSWORD = "tajnehaslo123";
+
+  const isAuthenticated = localStorage.getItem("admin_logged_in") === "true";
+  const loginForm = document.getElementById('login-form');
+  const adminPanel = document.getElementById('admin-panel');
+  const loginError = document.getElementById('login-error');
+
+  if (isAuthenticated) {
+    loginForm.style.display = 'none';
+    adminPanel.style.display = 'block';
+    document.getElementById('logout-btn').style.display = 'inline';
+
+    loadMessages();
+  }
+
+  function checkPassword() {
+    const entered = document.getElementById('admin-password').value;
+    if (entered === ADMIN_PASSWORD) {
+      localStorage.setItem("admin_logged_in", "true");
+      loginForm.style.display = 'none';
+      adminPanel.style.display = 'block';
+      document.getElementById('logout-btn').style.display = 'inline';
+
+      loadMessages();
+    } else {
+      loginError.innerText = "Błędne hasło!";
+    }
+  }
+
+  function loadMessages() {
+    fetch('http://127.0.0.1:8000/api/messages')
+      .then(res => res.json())
+      .then(data => {
+        const list = document.getElementById('messages-list');
+        list.innerHTML = "";
+        if (Array.isArray(data)) {
+          data.forEach((msg, index) => {
+            const item = document.createElement('li');
+            item.innerHTML = `<b>${msg.name}</b> (${msg.email}): ${msg.message}`;
+            const btn = document.createElement('button');
+            btn.innerText = "Usuń";
+            btn.onclick = () => deleteMessage(msg.id);
+            item.appendChild(btn);
+            list.appendChild(item);
+          });
+        } else {
+          list.innerText = "Brak wiadomości.";
+        }
+      });
+  }
+
+  function deleteMessage(index) {
+    fetch(`http://127.0.0.1:8000/api/messages/${index}`, {
+      method: 'DELETE'
+    })
+    .then(res => res.json())
+    .then(() => loadMessages());
+  }
+  function logout() {
+  localStorage.removeItem("admin_logged_in");
+  location.reload();
+}
+
+</script>
+
+</body>
+</html>

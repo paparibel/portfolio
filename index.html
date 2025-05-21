@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Moje Portfolio</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body> 
+  <h1 id="name"></h1>
+  <p id="bio"></p>
+
+  <h2>Projekty</h2>
+  <ul id="projects"></ul>
+
+  <h2>Kontakt</h2>
+  <form id="contact-form">
+    <label>Imię:<br><input type="text" id="name-input" required></label><br><br>
+    <label>Email:<br><input type="email" id="email-input" required></label><br><br>
+    <label>Wiadomość:<br><textarea id="message-input" required></textarea></label><br><br>
+    <button type="submit">Wyślij</button>
+  </form>
+  <p id="response-message"></p>
+
+  <script>
+    // Dane o mnie
+    fetch('http://127.0.0.1:8000/api/about')
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('name').innerText = `${data.name} – ${data.role}`;
+        document.getElementById('bio').innerText = data.bio;
+      });
+
+    // Projekty
+    fetch('http://127.0.0.1:8000/api/projects')
+      .then(res => res.json())
+      .then(data => {
+        const list = document.getElementById('projects');
+        data.forEach(p => {
+          const item = document.createElement('li');
+          item.innerHTML = `<a href="${p.link}" target="_blank">${p.title}</a>: ${p.description}`;
+          list.appendChild(item);
+        });
+      });
+
+    // Formularz kontaktowy
+    document.getElementById('contact-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const name = document.getElementById('name-input').value;
+      const email = document.getElementById('email-input').value;
+      const message = document.getElementById('message-input').value;
+
+      fetch('http://127.0.0.1:8000/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, message })
+      })
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('response-message').innerText = data.message || 'Wiadomość wysłana!';
+        document.getElementById('contact-form').reset();
+      })
+      .catch(() => {
+        document.getElementById('response-message').innerText = 'Błąd wysyłania wiadomości.';
+      });
+    });
+  </script>
+</body>
+</html>
