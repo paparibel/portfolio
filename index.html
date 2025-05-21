@@ -23,7 +23,7 @@
 
   <script>
     // Dane o mnie
-    fetch('http://127.0.0.1:8000/api/about')
+    fetch('http://portfolio-backend-ug31.onrender.com/api/about')
       .then(res => res.json())
       .then(data => {
         document.getElementById('name').innerText = `${data.name} – ${data.role}`;
@@ -31,7 +31,7 @@
       });
 
     // Projekty
-    fetch('http://127.0.0.1:8000/api/projects')
+    fetch('http://portfolio-backend-ug31.onrender.com/api/projects')
       .then(res => res.json())
       .then(data => {
         const list = document.getElementById('projects');
@@ -49,7 +49,7 @@
       const email = document.getElementById('email-input').value;
       const message = document.getElementById('message-input').value;
 
-      fetch('http://127.0.0.1:8000/api/contact', {
+      fetch('http://portfolio-backend-ug31.onrender.com/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, message })
