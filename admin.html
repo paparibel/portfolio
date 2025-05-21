@@ -62,7 +62,7 @@
   }
 
   function loadMessages() {
-    fetch('http://portfolio-backend-ug31.onrender.com/api/messages')
+    fetch('https://portfolio-backend-ug31.onrender.com/api/messages')
       .then(res => res.json())
       .then(data => {
         const list = document.getElementById('messages-list');
@@ -84,7 +84,7 @@
   }
 
   function deleteMessage(index) {
-    fetch(`http://portfolio-backend-ug31.onrender.com/api/messages/${index}`, {
+    fetch(`https://portfolio-backend-ug31.onrender.com/api/messages/${index}`, {
       method: 'DELETE'
     })
     .then(res => res.json())
