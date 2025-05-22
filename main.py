@@ -8,6 +8,8 @@ import json
 import os
 import sqlite3
 
+
+
 DB_FILE = "messages.db"
 
 def init_db():
@@ -122,5 +124,17 @@ def delete_message(id: int):
         c.execute("DELETE FROM contact_messages WHERE id = ?", (id,))
         conn.commit()
     return {"status": "deleted"}
+
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+
+# Serwowanie folderu z plikami statycznymi (CSS, JS, img itd.)
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
+
+# Serwowanie index.html przy wejściu na /
+@app.get("/")
+def serve_frontend():
+    return FileResponse(os.path.join("frontend", "index.html"))
 
 
