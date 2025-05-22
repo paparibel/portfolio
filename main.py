@@ -1,15 +1,23 @@
 # === Krok 1: Szkielet projektu (Python - FastAPI backend) ===
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import List
 import json
 import os
 import sqlite3
+from dotenv import load_dotenv
+load_dotenv()
 
 
+# === Ładowanie hasła z .env ===
+load_dotenv()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
+# === BAZA DANYCH ===
 DB_FILE = "messages.db"
 
 def init_db():
@@ -25,13 +33,11 @@ def init_db():
         """)
         conn.commit()
 
-
 app = FastAPI()
 init_db()
 
-# === ZAPIS/ODCZYT wiadomości ===
+# === ZAPIS/ODCZYT wiadomości (JSON backup, nie używany już aktywnie) ===
 DATA_FILE = "messages.json"
-
 def load_messages():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -42,8 +48,7 @@ def save_messages(messages):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(messages, f, ensure_ascii=False, indent=2)
 
-
-# CORS config - front-end moze byc hostowany osobno
+# === CORS (opcjonalnie) ===
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -70,10 +75,7 @@ projects = [
     Project(id=2, title="Blog App", description="Simple blog engine in Flask", link="https://myblog.com")
 ]
 
-contact_messages = []
-
-
-# === ENDPOINTY ===
+# === ENDPOINTY API ===
 @app.get("/api/projects", response_model=List[Project])
 def get_projects():
     return projects
@@ -85,14 +87,24 @@ def get_project(project_id: int):
             return proj
     return {"error": "Project not found"}
 
-# === Główna informacja ===
 @app.get("/api/about")
 def about():
     return {
-        "name": "Twoje Imię",
+        "name": "Michał",
         "role": "Python Developer",
-        "bio": "Krótka notka o mnie..."
+        "bio": """Python Developer z ponad 5-letnim doświadczeniem w automatyzacji procesów, analizie danych i wdrażaniu
+rozwiązań IT w branży przemysłowej i transportowej.
+Specjalizuję się w tworzeniu aplikacji i skryptów automatyzujących pracę biurową, analityczną i inżynieryjną.
+Pracuję z Pythonem, SQL, OpenAI API, a także uczę się technologii webowych (Java + Spring Boot).
+Świetnie odnajduję się w projektach, w których można zwiększyć efektywność i jakość działania dzięki technologii.
+Jestem gotowy na współpracę w modelu B2B – preferuję zdalne zlecenia i projekty z realnym wpływem na produkt.
+Python Automation Scripts (GitHub, 2025)
+Publiczna kolekcja skryptów automatyzujących – organizacja plików, obsługa CSV, integracje z API, praca na
+bazach danych. Repozytorium stworzone z myślą o rekruterach i prezentacji umiejętności Pythona.
+github.com/paparibel/python-automation-scripts
+"""
     }
+
 @app.post("/api/contact")
 def contact_form(message: ContactMessage):
     with sqlite3.connect(DB_FILE) as conn:
@@ -103,8 +115,6 @@ def contact_form(message: ContactMessage):
         """, (message.name, message.email, message.message))
         conn.commit()
     return {"status": "received", "message": "Dziękujemy za kontakt!"}
-
-from typing import Union
 
 @app.get("/api/messages")
 def get_messages():
@@ -125,20 +135,37 @@ def delete_message(id: int):
         conn.commit()
     return {"status": "deleted"}
 
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-import os
+# === FRONTEND ===
+from fastapi.responses import HTMLResponse
 
-# Serwowanie folderu z plikami statycznymi (CSS, JS, img itd.)
-app.mount("/static", StaticFiles(directory="frontend"), name="static")
-
-# Serwowanie index.html przy wejściu na /
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def serve_frontend():
     return FileResponse(os.path.join("frontend", "index.html"))
 
+
+# Pliki statyczne (CSS, JS itp.)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Login
+@app.get("/login")
+def login_page():
+    return FileResponse(os.path.join("frontend", "login.html"))
+
+@app.post("/login")
+async def login(password: str = Form(...)):
+    if password == ADMIN_PASSWORD:
+        response = RedirectResponse(url="/admin", status_code=302)
+        response.set_cookie("is_admin", "true")
+        return response
+    return RedirectResponse(url="/login", status_code=302)
+
+
+# Admin – zabezpieczony
 @app.get("/admin")
-def serve_admin():
+def serve_admin(request: Request):
+    if request.cookies.get("is_admin") != "true":
+        return RedirectResponse(url="/login")
     return FileResponse(os.path.join("frontend", "admin.html"))
+
 
 

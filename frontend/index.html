@@ -2,65 +2,80 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Moje Portfolio</title>
   <link rel="stylesheet" href="/static/style.css">
+  
 </head>
-<body> 
-  <h1 id="name"></h1>
-  <p id="bio"></p>
+<body>
+  <div class="layout-grid">
 
-  <h2>Projekty</h2>
-  <ul id="projects"></ul>
+    <!-- LEWA KOLUMNA: ZDJĘCIE -->
+    <div class="photo-box">
+    <img src="/static/michal.jpg" alt="Michał Cyba" class="photo">
+    </div>
 
-  <h2>Kontakt</h2>
-  <form id="contact-form">
-    <label>Imię:<br><input type="text" id="name-input" required></label><br><br>
-    <label>Email:<br><input type="email" id="email-input" required></label><br><br>
-    <label>Wiadomość:<br><textarea id="message-input" required></textarea></label><br><br>
-    <button type="submit">Wyślij</button>
-  </form>
-  <p id="response-message"></p>
+    <!-- ŚRODEK: BIO + PROJEKTY -->
+    <div>
+      <a href="/static/cv.pdf" download>Pobierz moje CV (PDF)</a>      <h1 id="name"></h1>
+      <p id="bio"></p>
+
+      <h2>Projekty</h2>
+      <ul id="projects"></ul>
+    </div>
+
+    <!-- PRAWA KOLUMNA: FORMULARZ -->
+    <div>
+      <h2>Kontakt</h2>
+      <form id="contact-form">
+        <label>Imię:<br><input type="text" id="name-input" required></label><br>
+        <label>Email:<br><input type="email" id="email-input" required></label><br>
+        <label>Wiadomość:<br><textarea id="message-input" required></textarea></label><br>
+        <button type="submit">Wyślij</button>
+      </form>
+      <p id="response-message"></p>
+    </div>
+
+  </div>
 
   <script>
-    // Dane o mnie
-    fetch('https://portfolio-backend-ug31.onrender.com/api/about')
+    const API_BASE = location.hostname === "localhost" || location.hostname === "127.0.0.1"
+      ? "http://127.0.0.1:8000"
+      : "https://portfolio-backend-ug31.onrender.com";
+
+    fetch(`${API_BASE}/api/about`)
       .then(res => res.json())
       .then(data => {
         document.getElementById('name').innerText = `${data.name} – ${data.role}`;
-        document.getElementById('bio').innerText = data.bio;
+        document.getElementById("bio").innerHTML = data.bio.replace(/\n/g, "<br>");
       });
 
-    // Projekty
-    fetch('https://portfolio-backend-ug31.onrender.com/api/projects')
+    fetch(`${API_BASE}/api/projects`)
       .then(res => res.json())
       .then(data => {
-        const list = document.getElementById('projects');
+        const ul = document.getElementById('projects');
         data.forEach(p => {
-          const item = document.createElement('li');
-          item.innerHTML = `<a href="${p.link}" target="_blank">${p.title}</a>: ${p.description}`;
-          list.appendChild(item);
+          const li = document.createElement('li');
+          li.innerHTML = `<a href="${p.link}" target="_blank">${p.title}</a>: ${p.description}`;
+          ul.appendChild(li);
         });
       });
 
-    // Formularz kontaktowy
     document.getElementById('contact-form').addEventListener('submit', function(e) {
       e.preventDefault();
       const name = document.getElementById('name-input').value;
       const email = document.getElementById('email-input').value;
       const message = document.getElementById('message-input').value;
 
-      fetch('https://portfolio-backend-ug31.onrender.com/api/contact', {
+      fetch(`${API_BASE}/api/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, message })
       })
       .then(res => res.json())
       .then(data => {
-        document.getElementById('response-message').innerText = data.message || 'Wiadomość wysłana!';
+        document.getElementById('response-message').innerText = data.message || 'Dziękujemy!';
         document.getElementById('contact-form').reset();
-      })
-      .catch(() => {
-        document.getElementById('response-message').innerText = 'Błąd wysyłania wiadomości.';
       });
     });
   </script>
