@@ -137,4 +137,8 @@ app.mount("/static", StaticFiles(directory="frontend"), name="static")
 def serve_frontend():
     return FileResponse(os.path.join("frontend", "index.html"))
 
+@app.get("/admin")
+def serve_admin():
+    return FileResponse(os.path.join("frontend", "admin.html"))
+
 
