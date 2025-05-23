@@ -1,4 +1,9 @@
 # === Krok 1: Szkielet projektu (Python - FastAPI backend) ===
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from datetime import datetime, timedelta
 
 from fastapi import FastAPI, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +20,9 @@ load_dotenv()
 
 # === Ładowanie hasła z .env ===
 load_dotenv()
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+
 
 # === BAZA DANYCH ===
 DB_FILE = "messages.db"
@@ -116,31 +123,14 @@ def contact_form(message: ContactMessage):
         conn.commit()
     return {"status": "received", "message": "Dziękujemy za kontakt!"}
 
-@app.get("/api/messages")
-def get_messages():
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute("SELECT id, name, email, message FROM contact_messages")
-        rows = c.fetchall()
-    return [
-        {"id": row[0], "name": row[1], "email": row[2], "message": row[3]}
-        for row in rows
-    ]
-
-@app.delete("/api/messages/{id}")
-def delete_message(id: int):
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute("DELETE FROM contact_messages WHERE id = ?", (id,))
-        conn.commit()
-    return {"status": "deleted"}
 
 # === FRONTEND ===
 from fastapi.responses import HTMLResponse
 
 @app.get("/", response_class=HTMLResponse)
 def serve_frontend():
-    return FileResponse(os.path.join("frontend", "index.html"))
+    return FileResponse("frontend/index.html")
+
 
 
 # Pliki statyczne (CSS, JS itp.)
@@ -168,4 +158,133 @@ def serve_admin(request: Request):
     return FileResponse(os.path.join("frontend", "admin.html"))
 
 
+# === JWT konfiguracja ===
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "tajnysekret")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+# === Baza users.db ===
+USERS_DB_FILE = "users.db"
+
+# === Hashowanie hasła ===
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# === Schemat tokena ===
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class User(BaseModel):
+    username: str
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login-jwt")
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_user_from_db(username: str):
+    with sqlite3.connect(USERS_DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("SELECT username, hashed_password FROM users WHERE username = ?", (username,))
+        row = c.fetchone()
+        if row:
+            return {"username": row[0], "hashed_password": row[1]}
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Nieautoryzowany",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = get_user_from_db(username)
+    if user is None:
+        raise credentials_exception
+    return User(username=user["username"])
+
+# === ENDPOINT: REJESTRACJA ===
+@app.post("/api/register")
+def register(username: str = Form(...), password: str = Form(...)):
+    hashed_pw = get_password_hash(password)
+    created_at = datetime.utcnow().isoformat()
+    try:
+        with sqlite3.connect(USERS_DB_FILE) as conn:
+            c = conn.cursor()
+            c.execute("INSERT INTO users (username, hashed_password, created_at) VALUES (?, ?, ?)",
+                      (username, hashed_pw, created_at))
+            conn.commit()
+        return {"status": "registered"}
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=400, detail="Użytkownik już istnieje")
+
+# === ENDPOINT: LOGOWANIE JWT ===
+@app.post("/api/login-jwt", response_model=Token)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    user = get_user_from_db(form_data.username)
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Błędne dane logowania")
+
+    # SPRAWDZAMY ADMINA PRZEZ .env
+    if user["username"] == ADMIN_USERNAME:
+        if form_data.password != ADMIN_PASSWORD:
+            raise HTTPException(status_code=403, detail="Hasło administratora nieprawidłowe")
+    else:
+        # DLA POZOSTAŁYCH SPRAWDZAMY HASH Z DB
+        if not verify_password(form_data.password, user["hashed_password"]):
+            raise HTTPException(status_code=401, detail="Błędne dane logowania")
+
+    access_token = create_access_token(data={"sub": user["username"]},
+                                       expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# === PRZYKŁADOWY ENDPOINT: tylko dla zalogowanych ===
+@app.get("/api/me")
+def read_users_me(current_user: User = Depends(get_current_user)):
+    return {"logged_in_as": current_user.username}
+
+@app.get("/api/messages")
+def get_messages(current_user: User = Depends(get_current_user)):
+    if current_user.username != ADMIN_USERNAME:
+        raise HTTPException(status_code=403, detail="Dostęp tylko dla administratora")
+
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("SELECT id, name, email, message FROM contact_messages")
+        rows = c.fetchall()
+
+    return [
+        {"id": row[0], "name": row[1], "email": row[2], "message": row[3]}
+        for row in rows
+    ]
+
+@app.delete("/api/messages/{id}")
+def delete_message(id: int, current_user: User = Depends(get_current_user)):
+    if current_user.username != ADMIN_USERNAME:
+        raise HTTPException(status_code=403, detail="Dostęp tylko dla administratora")
+
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM contact_messages WHERE id = ?", (id,))
+        conn.commit()
+
+    return {"status": "deleted"}
+
+@app.get("/register")
+def register_page():
+    return FileResponse(os.path.join("frontend", "register.html"))

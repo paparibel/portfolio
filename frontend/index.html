@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Moje Portfolio</title>
   <link rel="stylesheet" href="/static/style.css">
-  
+
 </head>
 <body>
+  <div id="navbar"></div>
   <div class="layout-grid">
+    
 
     <!-- LEWA KOLUMNA: ZDJĘCIE -->
     <div class="photo-box">
@@ -26,6 +28,8 @@
 
     <!-- PRAWA KOLUMNA: FORMULARZ -->
     <div>
+        <button onclick="location.href='/login'">🔐 Zaloguj</button>
+        <button onclick="location.href='/register'">📝 Rejestracja</button>
       <h2>Kontakt</h2>
       <form id="contact-form">
         <label>Imię:<br><input type="text" id="name-input" required></label><br>
@@ -78,6 +82,21 @@
         document.getElementById('contact-form').reset();
       });
     });
+     const token = localStorage.getItem("access_token");
+
+  if (token) {
+    document.getElementById("auth-bar").innerHTML = `
+      <span>👋 Witaj użytkowniku!</span>
+      <button onclick="logout()">🚪 Wyloguj</button>
+    `;
+  }
+
+  function logout() {
+    localStorage.removeItem("access_token");
+    location.reload();
+  }
   </script>
+  <script src="/static/navbar.js"></script>
+
 </body>
 </html>

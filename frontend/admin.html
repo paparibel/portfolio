@@ -57,5 +57,44 @@
     // Uruchom po wejściu
     loadMessages();
   </script>
+  <script>
+  const token = localStorage.getItem("access_token");
+
+  if (!token) {
+    alert("Nie jesteś zalogowany!");
+    window.location.href = "/login";
+  } else {
+    fetch("/api/messages", {
+      headers: {
+        Authorization: "Bearer " + token
+      }
+    })
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById("messages");
+      container.innerHTML = data.map(msg => `
+        <div class="msg">
+          <h4>${msg.name} &lt;${msg.email}&gt;</h4>
+          <p>${msg.message}</p>
+          <button onclick="deleteMsg(${msg.id})">🗑 Usuń</button>
+        </div>
+      `).join("");
+    });
+  }
+
+  function deleteMsg(id) {
+    fetch("/api/messages/" + id, {
+      method: "DELETE",
+      headers: {
+        Authorization: "Bearer " + token
+      }
+    }).then(() => location.reload());
+  }
+</script>
+
+<div id="messages">
+  <p>Ładowanie wiadomości...</p>
+</div>
+
 </body>
 </html>
